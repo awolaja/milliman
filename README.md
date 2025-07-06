@@ -1,33 +1,96 @@
-# milliman
+# Milliman Clinical & Claims Data Pipeline
 
-## Project Overview
+This project demonstrates a Spark-based data pipeline for parsing clinical XML data (C-CDA format), joining it with health claims data, mapping it to FHIR-aligned structures, and exporting structured outputs ready for analysis or ingestion into platforms like Databricks.
 
-This project implements a basic data pipeline to process clinical documents in the C-CDA format. The pipeline:
+##  Overview
 
-1. Downloads clinical data from a list of pre-signed S3 URLs.
-2. Parses relevant clinical domains (Medications and Problems) from the XML documents.
-3. (Planned) Combines parsed data with claims data.
-4. Stores the processed output in a flat file (CSV/Parquet) for ingestion into Databricks.
-5. (Optional) Describes a pipeline-to-CDM mapping using FHIR/HL7.
+- Downloads clinical C-CDA XML files using pre-signed S3 URLs
+- Extracts Medications and Problems from XML using Python and ElementTree
+- Joins parsed clinical data with claims and pharmacy claims CSVs
+- Validates key fields (e.g., ClaimID, NDC, FromDate)
+- Outputs clean Parquet and CSV files for downstream use
+- Maps data into a simplified FHIR-aligned CDM structure
+- Includes data quality tests implemented inline with PySpark
+
+##  Setup Instructions
+
+> **Dependencies:**
+- Python 3.8+
+- PySpark
+- pandas (for early exploration)
+- XML libraries (ElementTree)
+- local Jupyter Notebook environment
 
 
-## Pipeline Steps and Rationale
 
-### 1. Download C-CDA Files
-- Reads URLs from a CSV file.
-- Downloads each document using `requests` and saves to disk.
-- **Why:** Ensures local access to clinical XML data.
+### Local
+```bash
+pip install pyspark pandas
+```
 
-### 2. Parse Medications and Problems
-- Parses each XML document using `ElementTree` or `lxml`.
-- Extracts medications (e.g., using `substanceAdministration` entries).
-- Extracts problems (e.g., from `observation` nodes in problem sections).
-- **Why:** Translates unstructured XML into structured domain-specific datasets.
+##  How to Run
 
-### 3. (Planned) Combine with Claims Data
-- Will merge clinical and claims data using a patient ID or similar key.
-- **Why:** Provides a unified view of clinical and administrative data.
+1. Upload or mount the following files:
+   - `ccda_pre_signed_urls.csv`
+   - `data_engineer_exam_claims_final.csv`
+   - `data_engineer_exam_rx_final.csv`
+   - `data_overview.csv`
 
-### 4. Output Final Dataset
-- Saves to `combined_data.csv` or `combined_data.parquet`.
-- Designed for easy import into Databricks.
+2. Run the notebook cells in order:
+   - Step 1: Download XML files
+   - Step 2: Parse C-CDA files
+   - Step 3: Load and join with claims
+   - Step 4: Export to Parquet
+   - Step 5: FHIR/CDM mapping
+   - Step 6–8: Optional unit tests & validations
+
+3. Outputs will be saved to:
+   ```
+   /content/processed_data/
+   /content/data/output/
+   ```
+
+## Output Files
+
+| File                          | Format  | Description                              |
+|------------------------------|---------|------------------------------------------|
+| merged_medications.parquet   | Parquet | Medications + pharmacy claims            |
+| merged_problems.parquet      | Parquet | Problems + diagnosis claims              |
+| fhir_medicationstatement     | Parquet | FHIR-aligned MedicationStatement records |
+| fhir_condition               | Parquet | FHIR-aligned Condition records           |
+
+##  Data Quality Checks
+
+The pipeline includes in-notebook tests for:
+- Missing ClaimID / MemberID
+- NDC format (Rx claims)
+- Referential file integrity (`data_overview.csv`)
+- Logical dates (FromDate <= ToDate)
+
+##  Known Limitations
+
+- Does not support nested FHIR resources (e.g., encounter, practitioner)
+- FromDate/ToDate are assumed to be in US format (M/D/YYYY)
+- NDC code regex is simplified (numeric only, min 5 digits)
+
+##  Future Improvements
+
+- Convert FHIR mappings to JSON bundles (optional)
+- Use structured XML parsers (e.g., lxml or BeautifulSoup)
+- Integrate with a real FHIR API or HAPI-FHIR server
+- Replace string matching with code system validation (e.g., RxNorm/ICD)
+
+##  File Structure
+
+```
+Milliman.ipynb                     # Main notebook
+data_engineer_exam_claims_final.csv
+data_engineer_exam_rx_final.csv
+data_overview.csv
+ccda_pre_signed_urls.csv
+processed_data/                   # Exported CSV/Parquet outputs
+```
+
+---
+
+Created by Adeyemi (Yemi) Awolajafor the Data Engineering assessment.
