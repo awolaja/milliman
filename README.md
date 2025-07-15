@@ -1,96 +1,49 @@
-# Milliman Clinical & Claims Data Pipeline
+## End-to-End Data Pipeline Overview
 
-This project demonstrates a Spark-based data pipeline for parsing clinical XML data (C-CDA format), joining it with health claims data, mapping it to FHIR-aligned structures, and exporting structured outputs ready for analysis or ingestion into platforms like Databricks.
+Below is the high-level flow of this notebook:
 
-##  Overview
+"""
+## Pipeline Documentation
 
-- Downloads clinical C-CDA XML files using pre-signed S3 URLs
-- Extracts Medications and Problems from XML using Python and ElementTree
-- Joins parsed clinical data with claims and pharmacy claims CSVs
-- Validates key fields (e.g., ClaimID, NDC, FromDate)
-- Outputs clean Parquet and CSV files for downstream use
-- Maps data into a simplified FHIR-aligned CDM structure
-- Includes data quality tests implemented inline with PySpark
+This notebook implements an end-to-end pipeline to process clinical ccda files and claims data into a FHIR-compatible format:
 
-##  Setup Instructions
-
-> **Dependencies:**
-- Python 3.8+
-- PySpark
-- pandas (for early exploration)
-- XML libraries (ElementTree)
-- local Jupyter Notebook environment
-
-
-
-### Local
-```bash
-pip install pyspark pandas
-```
-
-##  How to Run
-
-1. Upload or mount the following files:
-   - `ccda_pre_signed_urls.csv`
-   - `data_engineer_exam_claims_final.csv`
-   - `data_engineer_exam_rx_final.csv`
-   - `data_overview.csv`
-
-2. Run the notebook cells in order:
-   - Step 1: Download XML files
-   - Step 2: Parse C-CDA files
-   - Step 3: Load and join with claims
-   - Step 4: Export to Parquet
-   - Step 5: FHIR/CDM mapping
-   - Step 6–8: Optional unit tests & validations
-
-3. Outputs will be saved to:
-   ```
-   /content/processed_data/
-   /content/data/output/
-   ```
-
-## Output Files
-
-| File                          | Format  | Description                              |
-|------------------------------|---------|------------------------------------------|
-| merged_medications.parquet   | Parquet | Medications + pharmacy claims            |
-| merged_problems.parquet      | Parquet | Problems + diagnosis claims              |
-| fhir_medicationstatement     | Parquet | FHIR-aligned MedicationStatement records |
-| fhir_condition               | Parquet | FHIR-aligned Condition records           |
-
-##  Data Quality Checks
-
-The pipeline includes in-notebook tests for:
-- Missing ClaimID / MemberID
-- NDC format (Rx claims)
-- Referential file integrity (`data_overview.csv`)
-- Logical dates (FromDate <= ToDate)
-
-##  Known Limitations
-
-- Does not support nested FHIR resources (e.g., encounter, practitioner)
-- FromDate/ToDate are assumed to be in US format (M/D/YYYY)
-- NDC code regex is simplified (numeric only, min 5 digits)
-
-##  Future Improvements
-
-- Convert FHIR mappings to JSON bundles (optional)
-- Use structured XML parsers (e.g., lxml or BeautifulSoup)
-- Integrate with a real FHIR API or HAPI-FHIR server
-- Replace string matching with code system validation (e.g., RxNorm/ICD)
-
-##  File Structure
-
-```
-Milliman.ipynb                     # Main notebook
-data_engineer_exam_claims_final.csv
-data_engineer_exam_rx_final.csv
-data_overview.csv
-ccda_pre_signed_urls.csv
-processed_data/                   # Exported CSV/Parquet outputs
-```
-
+1. Fetch c-CDA XML files from pre-signed S3 URLs.
+2. Extract relevant domains (Medications, Problems) from each CCDA.
+3. Join parsed data with claims data (rx and general claims).
+4. Map each domain into FHIR resource structures.
+5. Run unit tests and data quality checks.
+6. Wrote enriched and transformed data to Parquet/CSV for Databricks.
+7. Outline improvements and CI/CD considerations below 
+   CI/CD & Testing
+GitHub Actions workflow
+I would add a file at .github/workflows/ci.yml immediately after the unit-tests section. In that YAML I’d install dependencies, run pytest, and fail the build on any test errors so regressions are caught on every push.
+Prepare Output for Databricks
+Partitioned Parquet layout
+I would insert a markdown cell showing the directory pattern:
+s3://<bucket>/ccda_output/
+    year=YYYY/month=MM/day=DD/
+        part-*.parquet
+to ensure Databricks Auto Loader can ingest by partition.
+Orchestration (Airflow DAG)
+High-level Airflow DAG sketch
+I would add a markdown cell with a diagram or pseudocode showing:
+with DAG('ccda_pipeline'):
+    t1 = DownloadCCDA(...)
+    t2 = ParseMedicationsSpark(...)
+    t3 = ParseProblemsSpark(...)
+    t4 = TransformAndJoin(...)
+    t5 = UploadToS3(...)
+    t1 >> [t2, t3] >> t4 >> t5
+Task-to-notebook mapping
+I would insert a table like:
+Task  Notebook / Script
+download 1_download_ccda.ipynb
+parse 2_parse_medications.ipynb
+transform   3_transform_join.py
+load  4_upload_s3.ipynb
+Monitoring & Logging
+   This can be done either by using AWS Cloudwatch for monitoring process like parsing and storing data inside S3 bucket
+   Secondly,jobs can be monitored via monitoring DAG jobs and also Databricks jobs as well using tools or in house built processes.(env dependent)
 ---
 
-Created by Adeyemi (Yemi) Awolajafor the Data Engineering assessment.
+Created by Adeyemi (Yemi) Awolaja for the Data Engineering assessment.
